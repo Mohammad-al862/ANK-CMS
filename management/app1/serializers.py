@@ -67,8 +67,7 @@ class ResourceSerializer(serializers.ModelSerializer):
 
 class TaskSerializer(serializers.ModelSerializer):
     workers = serializers.ListField(child=serializers.CharField(), write_only=True)  # For assigning workers by adhar_no
-    resources = serializers.ListField(child=serializers.IntegerField(), write_only=True)  # List of resource IDs
-
+    
     class Meta:
         model = Task
         fields = ['id', 'title', 'description', 'start_date', 'end_date', 'project', 'image', 'workers', 'resources']

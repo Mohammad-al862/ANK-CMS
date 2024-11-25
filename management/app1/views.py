@@ -8,6 +8,12 @@ from .serializers import UserSerializer, ProjectSerializer, TaskSerializer, Work
 from django.contrib.auth import authenticate, login, logout
 from rest_framework.authtoken.models import Token
 from rest_framework.permissions import IsAuthenticated
+from django.contrib.auth.tokens import default_token_generator
+from django.contrib.auth import get_user_model
+from rest_framework import serializers, status
+from django.contrib.auth.models import User
+from django.core.mail import send_mail
+from django.conf import settings
 
 
 
@@ -40,6 +46,50 @@ def logout_view(request):
     logout(request)
     return Response({'message': 'Logout successful'})
  
+@api_view(['POST'])
+@permission_classes([permissions.IsAuthenticated])
+def password_reset_request(request):
+    """Request a password reset token (Managers and Supervisors only)."""
+    if not hasattr(request.user, 'manager') and not hasattr(request.user, 'supervisor'):
+        return Response({'message': 'You do not have permission to reset password.'}, status=status.HTTP_403_FORBIDDEN)
+    
+    user = request.user
+    
+    # Generate a token for password reset
+    token = default_token_generator.make_token(user)
+    
+    # Return the token directly in the response
+    return Response({'message': 'Password reset token generated successfully.', 'reset_token': token}, status=status.HTTP_200_OK)
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def reset_password(request, username, token):
+    """Reset password with new password (Managers and Supervisors only)."""
+    try:
+        user = get_user_model().objects.get(username=username)
+    except get_user_model().DoesNotExist:
+        return Response({'message': 'User not found'}, status=status.HTTP_404_NOT_FOUND)
+    
+    # Validate token
+    if not default_token_generator.check_token(user, token):
+        return Response({'message': 'Invalid token or token expired'}, status=status.HTTP_400_BAD_REQUEST)
+
+    # Check if the user is manager or supervisor
+    if not hasattr(user, 'manager') and not hasattr(user, 'supervisor'):
+        return Response({'message': 'You do not have permission to reset password.'}, status=status.HTTP_403_FORBIDDEN)
+    
+    new_password = request.data.get('new_password')
+    if not new_password:
+        return Response({'message': 'New password is required'}, status=status.HTTP_400_BAD_REQUEST)
+    
+    # Set the new password
+    user.set_password(new_password)
+    user.save()
+
+    return Response({'message': 'Password reset successful'}, status=status.HTTP_200_OK)
+
+
 @api_view(['GET'])
 @permission_classes([permissions.IsAuthenticated])
 def my_profile(request):
